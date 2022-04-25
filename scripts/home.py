@@ -1,8 +1,29 @@
 import streamlit as st
-import os
 import pandas as pd
-from github import Github
-from github import InputGitTreeElement
+import os
+import numpy as np
+import re
+
+
+
+
+
+def app():
+    wrapper()
+
+
+
+def clean_tweets(df):
+    if 'text' in df.columns:
+        df['clean_text'] = df['text'].apply(lambda x: re.split('https:\/\/.*', str(x))[0])
+        df.drop_duplicates('clean_text', inplace=True)
+    if 'text' and 'entities_hashtags' in df.columns:
+        df.drop(['text', 'entities_hashtags'], axis=1, inplace=True)
+    df.reset_index(inplace=True)
+    df['label'] = np.nan
+    tweets_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'tweets.csv')
+    df.to_csv(tweets_file, index=False)
+    return df
 
 
 def read_tweets():
@@ -11,39 +32,49 @@ def read_tweets():
     return df
 
 
-def app():
-    wrapper()
+def write_tweets(df):
+    tweets_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'tweets.csv')
+    df.to_csv(tweets_file, index=False)
 
 
 def wrapper():
-    #st.write(st.session_state)
+    if 'labels' not in st.session_state:
+        st.session_state['labels'] = []
+    if 'tweets' not in st.session_state:
+        st.session_state['tweets'] = []
+    if 'count' not in st.session_state:
+        st.session_state['count'] = [-1]
     df = read_tweets()
-    for tweets, label in zip(st.session_state['tweets'][:-1], st.session_state['labels']):
-        df.loc[df.clean_text == tweets, 'label'] = label
-    tweets_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'tweets.csv')
-    df_commit = df.to_csv(index=False)
-    file_list = [df_commit]
-    file_names = ["tweets.csv"]
-    # Create connection with GiHub
-    user = os.environ['git_user']
-    password = os.environ['git_token']
-    commit_message = 'Tweets file updated'
-    g = Github(user, password)
-    #
-    repo = g.get_user().get_repo(os.environ['git_repo_name'])
-    master_ref = repo.get_git_ref("heads/main")
-    master_sha = master_ref.object.sha
-    base_tree = repo.get_git_tree(master_sha)
-    #
-    element_list = list()
-    element = InputGitTreeElement(file_names[0], '100644', 'blob', file_list[0])
-    element_list.append(element)
-    tree = repo.create_git_tree(element_list, base_tree)
-    parent = repo.get_git_commit(master_sha)
-    commit = repo.create_git_commit(commit_message, tree, [parent])
-    master_ref.edit(commit.sha)
-    print('Update complete')
+    ct = 0
+    count = np.random.randint(df.shape[0])
+    if 'label' not in df.columns:
+        df = clean_tweets(df)
+    st.session_state['submit'] = False
+    st.title('Welcome to the Fun of labelling!!')
+    st.write('Tweet text:')
+    while count in st.session_state['count']:
+        if ct > df.shape[0]: break
+        count = np.random.randint(df.shape[0])
+        ct += 1
+    st.write(df['clean_text'][count])
+    st.session_state['tweets'].append(df['clean_text'][count])
+    st.session_state['count'].append(count)
 
+    with st.form(key='my_form', clear_on_submit=True):
+        select_quality = st.radio(
+            "Is this tweet about quality of statistics?", ('Yes', 'No', 'I don\'t know'))
+        submit_button = st.form_submit_button(label='Submit')
 
-    st.title('Thank you for helping us to label the data!')
-    #st.write(st.session_state)
+        if submit_button:
+            st.session_state['submit'] = True
+            st.session_state['labels'].append(select_quality)
+            #st.session_state['tweets'].append(df['clean_text'][count])
+            #st.write(st.session_state)
+    # stop = st.button('Exit')
+    # if stop:
+    #     df = read_tweets()
+    #     for tweets, label in zip(st.session_state['tweets'], st.session_state['labels']):
+    #         df.loc[df.clean_text == tweets, 'label'] = label
+    #     tweets_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'tweets_for_ml.csv')
+    #     df.to_csv(tweets_file, index=False)
+       # exit.app()
