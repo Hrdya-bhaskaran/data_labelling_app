@@ -6,7 +6,6 @@ from github import InputGitTreeElement
 
 
 def read_tweets():
-    tweets_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'tweets.csv')
     url = 'https://raw.githubusercontent.com/Hrdya-bhaskaran/data_labelling_app/main/tweets.csv'
     df = pd.read_csv(url, index_col=0)
     return df
